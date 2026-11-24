@@ -1,0 +1,55 @@
+Logic Fabric for Microsoft Dataverse and Dynamics 365 Customer Engagement
+Software License
+
+Copyright (c) Flowon Corp. All rights reserved.
+
+This software, including the Claude Code plugin and the skills, commands, agents and reference material it
+contains, is proprietary commercial software of Flowon Corp. ("Flowon"). It is licensed, not sold.
+
+1. License
+
+   You may install and use this software only while you hold a valid subscription or license to Logic Fabric
+   from Flowon or an authorized Flowon partner, and only as permitted by the Flowon End User License
+   Agreement (EULA) and the Terms of Service that apply to that subscription
+   (https://www.flowon.com/terms-of-service). If this notice and the EULA conflict, the EULA governs.
+
+2. Restrictions
+
+   Unless the EULA or another written agreement with Flowon permits it, you may not:
+
+   a. copy, modify, adapt or create derivative works of the software, except as needed to use it as
+      documented;
+   b. reverse engineer, decompile or disassemble the software, except to the extent applicable law
+      expressly permits it despite this restriction;
+   c. sublicense, sell, rent, lease, lend, distribute or publish the software, on its own or as part of
+      another package or product;
+   d. remove or change any copyright, trademark or license notice in the software.
+
+3. Ownership
+
+   Flowon and its licensors keep all right, title and interest in the software, including all
+   intellectual property rights. No rights are granted except those expressly stated in the EULA.
+
+4. Third-party components
+
+   The software may include or depend on third-party components that are licensed under their own terms.
+   Those terms apply to those components.
+
+5. No warranty
+
+   Except as expressly stated in the EULA, the software is provided "as is", without warranty of any kind,
+   express or implied, including warranties of merchantability, fitness for a particular purpose and
+   non-infringement.
+
+6. Limitation of liability
+
+   To the maximum extent permitted by applicable law, Flowon is not liable for any indirect, incidental,
+   special, consequential or punitive damages, or for any loss of profits, data, business or goodwill,
+   arising out of or related to the software. Flowon's total liability is limited as set out in the EULA.
+
+7. Termination
+
+   Your right to use the software ends automatically when your subscription or license ends, or if you do
+   not comply with this notice or the EULA. You must then stop using the software and delete all copies.
+
+Questions about this license: legal@flowon.com

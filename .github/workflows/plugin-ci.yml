@@ -1,0 +1,46 @@
+# Checks a plugin repository: Claude Code's validator, the generated Codex and Copilot packages and manifests, and the
+# plugin's own tests (tests/*.test.mjs). Plugin repositories call it from their CI and release workflows:
+#
+#   jobs:
+#     ci:
+#       uses: flowon-official/plugin-tools/.github/workflows/plugin-ci.yml@v1
+name: plugin-ci
+
+on:
+  workflow_call:
+    inputs:
+      tools-ref:
+        description: The plugin-tools tag or branch to check with.
+        type: string
+        default: v1
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Outside the workspace, so the validator sees only the plugin.
+      - name: Get plugin-tools
+        run: git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+
+      - name: Claude Code's validator
+        run: npx --yes @anthropic-ai/claude-code plugin validate .
+
+      - name: The Codex and Copilot packages and the manifests
+        run: node --test "$RUNNER_TEMP/plugin-tools/checks/plugin.test.mjs"
+        env:
+          PLUGIN_DIR: ${{ github.workspace }}
+
+      - name: The plugin's own tests
+        run: |
+          shopt -s nullglob
+          files=(tests/*.test.mjs)
+          if [ ${#files[@]} -gt 0 ]; then node --test "${files[@]}"; else echo "No tests/*.test.mjs."; fi

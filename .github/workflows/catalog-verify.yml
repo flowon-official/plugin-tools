@@ -1,0 +1,37 @@
+# Checks a catalog repository: every entry is pinned by tag and full commit, the tag points at that commit, and the
+# plugin there has the entry's name and the tag's version and passes Claude Code's validator. The catalog calls it on
+# pull requests, on main, and weekly (a deleted or moved tag shows up there):
+#
+#   jobs:
+#     verify:
+#       uses: flowon-official/plugin-tools/.github/workflows/catalog-verify.yml@v1
+name: catalog-verify
+
+on:
+  workflow_call:
+    inputs:
+      tools-ref:
+        description: The plugin-tools tag or branch to verify with.
+        type: string
+        default: v1
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get plugin-tools and Claude Code's validator
+        run: |
+          git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+          npm install --global --silent @anthropic-ai/claude-code
+
+      - name: Verify every entry
+        run: node "$RUNNER_TEMP/plugin-tools/bin/verify-catalog.mjs" . --validate

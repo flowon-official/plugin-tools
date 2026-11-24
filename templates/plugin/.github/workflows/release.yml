@@ -1,0 +1,18 @@
+# A push to main checks the plugin; when its version is new, it is tagged and released, and the catalog gets a pull
+# request that ships it once a release owner merges it.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: flowon-official/plugin-tools/.github/workflows/plugin-ci.yml@v1
+  release:
+    needs: ci
+    uses: flowon-official/plugin-tools/.github/workflows/plugin-release.yml@v1
+    permissions:
+      contents: write
+    secrets: inherit

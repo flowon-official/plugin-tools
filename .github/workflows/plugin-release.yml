@@ -1,0 +1,134 @@
+# Releases a plugin when its version changes on main: tags the commit v<version>, publishes a GitHub release with the
+# changelog entry, and opens a pull request in the catalog that points the plugin's entry at that tag and commit.
+# Merging that pull request (a release owner reviews it) ships the release to Claude Code, Codex and GitHub Copilot.
+#
+# Run it after plugin-ci, on pushes to main:
+#
+#   jobs:
+#     ci:
+#       uses: flowon-official/plugin-tools/.github/workflows/plugin-ci.yml@v1
+#     release:
+#       needs: ci
+#       uses: flowon-official/plugin-tools/.github/workflows/plugin-release.yml@v1
+#       permissions:
+#         contents: write
+#       secrets: inherit
+#
+# It needs the org's release GitHub App, installed on the catalog repository: its ID in the variable
+# FLOWON_RELEASE_APP_ID and its private key in the secret FLOWON_RELEASE_APP_KEY.
+#
+# A push that doesn't change the version does nothing past the checks. Each run is idempotent: a version already tagged
+# isn't tagged again, and a catalog already pointing at the tag isn't changed. To finish a release whose catalog step
+# failed, run the workflow by hand (workflow_dispatch): it proposes the current version to the catalog again.
+name: plugin-release
+
+on:
+  workflow_call:
+    inputs:
+      tools-ref:
+        description: The plugin-tools tag or branch to release with.
+        type: string
+        default: v1
+      catalog:
+        description: The catalog repository (owner/name).
+        type: string
+        default: flowon-official/ai-plugins
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Get plugin-tools
+        run: git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+
+      - name: Read the version
+        id: plugin
+        env:
+          CATALOG: ${{ inputs.catalog }}
+        run: |
+          name=$(node -p "require('./.claude-plugin/plugin.json').name")
+          version=$(node -p "require('./.claude-plugin/plugin.json').version")
+          {
+            echo "name=$name"
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "catalog-owner=${CATALOG%%/*}"
+            echo "catalog-repo=${CATALOG#*/}"
+          } >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "v$version is already tagged."
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and publish the release
+        if: steps.plugin.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node "$RUNNER_TEMP/plugin-tools/bin/release-notes.mjs" . > "$RUNNER_TEMP/notes.md"
+          gh release create "${{ steps.plugin.outputs.tag }}" --target "$GITHUB_SHA" \
+            --title "${{ steps.plugin.outputs.name }} ${{ steps.plugin.outputs.version }}" --notes-file "$RUNNER_TEMP/notes.md"
+          git fetch --quiet --tags
+
+      - name: Get a token for the catalog
+        id: app
+        if: steps.plugin.outputs.new == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.FLOWON_RELEASE_APP_ID }}
+          private-key: ${{ secrets.FLOWON_RELEASE_APP_KEY }}
+          owner: ${{ steps.plugin.outputs.catalog-owner }}
+          repositories: ${{ steps.plugin.outputs.catalog-repo }}
+
+      - name: Propose the release to the catalog
+        if: steps.plugin.outputs.new == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          CATALOG: ${{ inputs.catalog }}
+          NAME: ${{ steps.plugin.outputs.name }}
+          VERSION: ${{ steps.plugin.outputs.version }}
+          TAG: ${{ steps.plugin.outputs.tag }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-list -n 1 "$TAG")
+          git clone --quiet "https://x-access-token:${GH_TOKEN}@github.com/${CATALOG}.git" "$RUNNER_TEMP/catalog"
+          node "$RUNNER_TEMP/plugin-tools/bin/update-catalog.mjs" --catalog "$RUNNER_TEMP/catalog" --plugin . \
+            --url "https://github.com/${GITHUB_REPOSITORY}.git" --ref "$TAG" --sha "$sha"
+          cd "$RUNNER_TEMP/catalog"
+          if git diff --quiet; then
+            echo "The catalog already points at $TAG."
+            exit 0
+          fi
+          id=$(gh api "/users/${SLUG}%5Bbot%5D" --jq .id)
+          git config user.name "${SLUG}[bot]"
+          git config user.email "${id}+${SLUG}[bot]@users.noreply.github.com"
+          branch="release/${NAME}-${TAG}"
+          git checkout -q -b "$branch"
+          git commit -q -am "Release ${NAME} ${VERSION}"
+          git push -q --force origin "$branch"
+          {
+            node "$RUNNER_TEMP/plugin-tools/bin/release-notes.mjs" "$GITHUB_WORKSPACE"
+            echo
+            echo "---"
+            echo "Points \`${NAME}\` at [${TAG}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) (\`${sha}\`)."
+            echo "Merging releases it to everyone using the marketplace in Claude Code, Codex and GitHub Copilot; reverting this pull request rolls it back."
+          } > "$RUNNER_TEMP/body.md"
+          node "$RUNNER_TEMP/plugin-tools/bin/open-pr.mjs" --repo "$CATALOG" --head "$branch" \
+            --title "Release ${NAME} ${VERSION}" --body "$(cat "$RUNNER_TEMP/body.md")"

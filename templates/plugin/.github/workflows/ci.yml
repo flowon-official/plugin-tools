@@ -1,0 +1,8 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  ci:
+    uses: flowon-official/plugin-tools/.github/workflows/plugin-ci.yml@v1

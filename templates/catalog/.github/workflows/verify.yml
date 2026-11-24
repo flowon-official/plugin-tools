@@ -1,0 +1,12 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6 * * 1'
+
+jobs:
+  verify:
+    uses: flowon-official/plugin-tools/.github/workflows/catalog-verify.yml@v1

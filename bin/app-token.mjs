@@ -65,14 +65,22 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     process.exit(2);
   }
 
-  if (args.includes('--identity')) {
-    // node app-token.mjs --identity: the bot's name and e-mail, one per line.
-    const { name, email } = await appIdentity({ appId, privateKey });
-    console.log(`${name}\n${email}`);
-  } else if (args.indexOf('--owner') < 0 || repositories.length === 0) {
-    console.error('Give --owner and at least one --repo (or --identity).');
-    process.exit(2);
-  } else {
-    process.stdout.write(await installationToken({ appId, privateKey, owner, repositories }));
+  try {
+    if (args.includes('--identity')) {
+      // node app-token.mjs --identity: the bot's name and e-mail, one per line.
+      const { name, email } = await appIdentity({ appId, privateKey });
+      console.log(`${name}\n${email}`);
+    } else if (args.indexOf('--owner') < 0 || repositories.length === 0) {
+      console.error('Give --owner and at least one --repo (or --identity).');
+      process.exitCode = 2;
+    } else {
+      process.stdout.write(await installationToken({ appId, privateKey, owner, repositories }));
+    }
+  } catch (error) {
+    // One line, and a normal exit: an unhandled rejection while requests are open crashes node on Windows.
+    console.error(/\/installation: 404/.test(error.message)
+      ? `GitHub found no installation of the GitHub App ${appId} on ${owner}: install the App on the repositories it needs, and check the App ID and key.`
+      : error.message);
+    process.exitCode = 1;
   }
 }

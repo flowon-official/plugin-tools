@@ -30,7 +30,7 @@ jobs:
 
       - name: Get plugin-tools and Claude Code's validator
         run: |
-          git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+          git -c advice.detachedHead=false clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
           npm install --global --silent @anthropic-ai/claude-code
 
       - name: Verify every entry

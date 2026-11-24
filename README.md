@@ -17,7 +17,7 @@ install from.
 | `.github/workflows/plugin-ci.yml` | Reusable: checks a plugin repository |
 | `.github/workflows/plugin-release.yml` | Reusable: tags a new version, publishes the release, opens the catalog pull request |
 | `.github/workflows/catalog-verify.yml` | Reusable: checks the catalog |
-| `templates/` | The workflows a plugin repository and the catalog copy in, and the Azure DevOps steps that propose the CLI skill to its plugin |
+| `templates/` | The workflows a plugin repository and the catalog copy in |
 | `migrate/split-plugin.sh` | Moves a plugin out of a repository of several, with its history and tags |
 
 ## A plugin repository
@@ -77,15 +77,17 @@ The catalog holds nothing else: every commit to it makes Codex fetch it again an
 
 ## One-time setup
 
-- A GitHub App owned by the org (the release App), with *Contents* and *Pull requests* read and write, installed on
-  the catalog and on each plugin repository that the Azure DevOps pipeline updates. Its ID goes in the org variable
-  `FLOWON_RELEASE_APP_ID`, its private key in the org secret `FLOWON_RELEASE_APP_KEY`, both available to the plugin
-  repositories.
+- A GitHub App owned by the org (the release App, `flowon-plugin-release`), with *Contents* and *Pull requests* read
+  and write and no webhook, installed on the catalog and on each plugin repository that a pipeline outside GitHub
+  updates. Its ID goes in the org variable `FLOWON_RELEASE_APP_ID`, its private key in the org secret
+  `FLOWON_RELEASE_APP_KEY`, both available to the plugin repositories.
 - A team of release owners, `@flowon-official/plugin-release-owners`, as the catalog's code owners, with branch
   protection on the catalog's `main` that requires their review and the Verify check.
 - Branch protection on each plugin repository's `main` that requires the CI check.
-- For the CLI plugin: the App's ID and key in an Azure DevOps variable group (`FlowonReleaseAppId`,
-  `FlowonReleaseAppKey`), and `templates/azure-pipelines/cli-plugin-sync.yml` in flowon-xrm's CLI release.
+- For the CLI plugin: flowon-xrm's build (`build/build-all.yml`) runs `build/Propose-CliPluginSkill.ps1` after it
+  publishes the CLI, with the App's key as the Azure DevOps secure file `flowon-plugin-release.pem`. When the CLI skill
+  changed, it opens a pull request in flowon-dynamics-plugin with a patch version, using `bin/app-token.mjs`,
+  `bin/bump-version.mjs` and `bin/open-pr.mjs`.
 
 ## Versions of these tools
 

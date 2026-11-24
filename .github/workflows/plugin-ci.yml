@@ -29,7 +29,7 @@ jobs:
 
       # Outside the workspace, so the validator sees only the plugin.
       - name: Get plugin-tools
-        run: git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+        run: git -c advice.detachedHead=false clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
 
       - name: Claude Code's validator
         run: npx --yes @anthropic-ai/claude-code plugin validate .

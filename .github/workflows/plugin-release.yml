@@ -53,7 +53,7 @@ jobs:
           node-version: 22
 
       - name: Get plugin-tools
-        run: git clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
+        run: git -c advice.detachedHead=false clone --quiet --depth 1 --branch "${{ inputs.tools-ref }}" https://github.com/flowon-official/plugin-tools.git "$RUNNER_TEMP/plugin-tools"
 
       - name: Read the version
         id: plugin

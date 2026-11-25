@@ -40,6 +40,9 @@ The plugin sits at the repository's root: `.claude-plugin/plugin.json`, `skills/
   `short` is Codex's short description (30 characters at most). Codex takes only lowercase letters, digits and
   underscores in an agent's name, so agents become `<codexAgentPrefix>_<agent>`, which also keeps them from replacing
   one of Codex's own (`explorer`). `servers` names each MCP server in `.mcp.json` in an agent's instructions for Codex.
+- In `commands/`, `disable-model-invocation: false` in a command's front matter for a command the agent may run too
+  (Claude Code lets it by default), for example when the user picks it as the next step. Codex and Copilot get the
+  others as skills only the user runs.
 - `CHANGELOG.md`, with a `## <version> (<date>)` entry per release: it becomes the release notes.
 - `.github/workflows/` from `templates/plugin/`.
 - Tests of its own, if any, as `tests/*.test.mjs` (Node's test runner).

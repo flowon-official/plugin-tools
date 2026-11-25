@@ -38,6 +38,10 @@ const json = value => JSON.stringify(value, null, 2) + '\n';
 const quote = text => JSON.stringify(text);
 const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// A pattern for the text in any case, without regular-expression flags (which a client's matcher may not take):
+// foundry → [Ff][Oo][Uu][Nn][Dd][Rr][Yy].
+const anyCase = text => [...text].map(c => c.toLowerCase() === c.toUpperCase() ? escape(c) : `[${c.toUpperCase()}${c.toLowerCase()}]`).join('');
+
 function write(file, text) {
   const current = existsSync(file) ? readFileSync(file, 'utf8') : null;
 
@@ -150,11 +154,12 @@ function portHooks(claude, client) {
         if (matchers[matcher]) {
           matcher = matchers[matcher];
         } else {
-          // Codex names a configured server's tools mcp__<server>__<tool>. Copilot CLI names them <server>-<tool>
-          // (undocumented, seen live), so its matcher takes any name with the server's in it, and the hooks check the
+          // Codex names a configured server's tools mcp__<server>__<tool>. Copilot names them <server>-<tool>
+          // (undocumented, seen live) after the name the user gave the server, such as Logic-Fabric-Foundry in the
+          // Copilot app, so its matcher takes any name with the server's in it, in any case, and the hooks check the
           // name again.
           for (const server of servers) {
-            matcher = matcher.replace(claudeTools(server), client === 'codex' ? `mcp__${server}__` : `.*${server}.*`);
+            matcher = matcher.replace(claudeTools(server), client === 'codex' ? `mcp__${server}__` : `.*${anyCase(server)}.*`);
           }
         }
       }
@@ -239,13 +244,16 @@ function portCommands() {
   for (const file of readdirSync(folder).filter(f => f.endsWith('.md'))) {
     const name = file.replace(/\.md$/, '');
     const { meta, body } = parse(readFileSync(join(folder, file), 'utf8'));
+    // A command is the user's to run, unless its front matter says `disable-model-invocation: false`: then the agent
+    // may run it too, as Claude Code lets it, for example when the user picks it as the next step.
+    const agentRuns = String(meta['disable-model-invocation']).toLowerCase() === 'false';
     const lines = [
       '---',
       `name: ${name}`,
       `description: ${quote(meta.description)}`,
       ...(meta['argument-hint'] ? [`argument-hint: ${quote(meta['argument-hint'])}`] : []),
       'user-invocable: true',
-      'disable-model-invocation: true',
+      `disable-model-invocation: ${!agentRuns}`,
       '---',
       '',
       `<!-- ${MARKER} from commands/${file}. -->`,
@@ -254,7 +262,7 @@ function portCommands() {
 
     write(join(pluginDir, 'ports', 'skills', name, 'SKILL.md'), lines.join('\n') + portText(body).trimStart());
     write(join(pluginDir, 'ports', 'skills', name, 'agents', 'openai.yaml'),
-      `# ${MARKER}: Codex runs this skill only when the user asks for it.\ninterface:\n  display_name: ${quote(`${plugin}: ${name}`)}\npolicy:\n  allow_implicit_invocation: false\n`);
+      `# ${MARKER}: ${agentRuns ? 'the user runs this skill, and so may Codex when the user asks for it.' : 'Codex runs this skill only when the user asks for it.'}\ninterface:\n  display_name: ${quote(`${plugin}: ${name}`)}\npolicy:\n  allow_implicit_invocation: ${agentRuns}\n`);
     names.push(name);
   }
 

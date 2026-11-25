@@ -8,10 +8,10 @@ import { section } from '../bin/release-notes.mjs';
 import { updateEntry } from '../bin/update-catalog.mjs';
 import { entryProblems, tagCommit, verifyRemote } from '../bin/verify-catalog.mjs';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const sha = 'a'.repeat(40);
 const url = 'https://github.com/flowon-official/logic-fabric-dataverse-plugin.git';
@@ -110,6 +110,48 @@ describe('bump-version', () => {
       '# Changelog\n\n## 1.0.1 (2026-11-24)\n\n- Synced the CLI skill.\n\n## 1.0.0 (2026-11-20)\n\n- First.\n');
     assert.equal(addEntry(null, '1.0.0', 'First.', '2026-11-24'), '# Changelog\n\n## 1.0.0 (2026-11-24)\n\n- First.\n');
   });
+});
+
+test('build-ports: a command is the user\'s to run unless its front matter lets the agent run it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ports-'));
+  mkdirSync(join(dir, '.claude-plugin'));
+  mkdirSync(join(dir, 'commands'));
+  writeFileSync(join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify(manifest));
+  writeFileSync(join(dir, 'commands', 'status.md'), '---\ndescription: Show the status.\n---\n\nShow it.\n');
+  writeFileSync(join(dir, 'commands', 'plan.md'), '---\ndescription: Write the plan.\ndisable-model-invocation: false\n---\n\nWrite it.\n');
+  execFileSync(process.execPath, [fileURLToPath(new URL('../bin/build-ports.mjs', import.meta.url)), dir]);
+  const read = (...p) => readFileSync(join(dir, 'ports', 'skills', ...p), 'utf8');
+
+  assert.match(read('status', 'SKILL.md'), /\ndisable-model-invocation: true\n/);
+  assert.match(read('status', 'agents', 'openai.yaml'), /allow_implicit_invocation: false/);
+  assert.match(read('plan', 'SKILL.md'), /\ndisable-model-invocation: false\n/);
+  assert.match(read('plan', 'agents', 'openai.yaml'), /allow_implicit_invocation: true/);
+});
+
+test('build-ports: Copilot\'s hooks match the server\'s tools whatever the case of the name the user gave the server', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ports-'));
+  mkdirSync(join(dir, '.claude-plugin'));
+  mkdirSync(join(dir, 'hooks'));
+  writeFileSync(join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify(manifest));
+  writeFileSync(join(dir, '.mcp.json'), JSON.stringify({ mcpServers: { foundry: { type: 'http', url: 'https://example.com/mcp' } } }));
+  writeFileSync(join(dir, 'hooks', 'hooks.json'), JSON.stringify({ hooks: {
+    PreToolUse: [{ matcher: 'mcp__plugin_logic-fabric-dataverse_foundry__.*', hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/gate.mjs"', timeout: 30 }] }],
+    PostToolUse: [{ matcher: 'mcp__plugin_logic-fabric-dataverse_foundry__(save|delete)', hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/hooks/export.mjs"', timeout: 30 }] }],
+  } }));
+  execFileSync(process.execPath, [fileURLToPath(new URL('../bin/build-ports.mjs', import.meta.url)), dir]);
+  const copilot = JSON.parse(readFileSync(join(dir, 'ports', 'copilot', 'hooks.json'), 'utf8')).hooks;
+  const codex = JSON.parse(readFileSync(join(dir, 'ports', 'codex', 'hooks.json'), 'utf8')).hooks;
+  const gate = new RegExp(`^(?:${copilot.PreToolUse[0].matcher})$`);
+  const exportHook = new RegExp(`^(?:${copilot.PostToolUse[0].matcher})$`);
+
+  for (const name of ['foundry-save', 'Logic-Fabric-Foundry-save', 'FOUNDRY-get']) {
+    assert.ok(gate.test(name), name);
+  }
+
+  assert.ok(!gate.test('github-mcp-server-get_file_contents'));
+  assert.ok(exportHook.test('Logic-Fabric-Foundry-delete'));
+  assert.ok(!exportHook.test('Logic-Fabric-Foundry-get'));
+  assert.equal(codex.PreToolUse[0].matcher, 'mcp__foundry__.*');
 });
 
 test('release-notes: the version\'s changelog entry, without its heading', () => {

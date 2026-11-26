@@ -154,12 +154,18 @@ function portHooks(claude, client) {
         if (matchers[matcher]) {
           matcher = matchers[matcher];
         } else {
-          // Codex names a configured server's tools mcp__<server>__<tool>. Copilot names them <server>-<tool>
-          // (undocumented, seen live) after the name the user gave the server, such as Logic-Fabric-Foundry in the
-          // Copilot app, so its matcher takes any name with the server's in it, in any case, and the hooks check the
-          // name again.
+          // Codex names a configured server's tools mcp__<server>__<tool>. It also reaches a server the user added to
+          // ChatGPT as an app, as mcp__codex_apps__<app>__<tool> (<app> is the app's name, such as
+          // logic_fabric_foundry_1), so its matcher also takes those of an app with the server's name in its own.
+          // Copilot names them <server>-<tool> (undocumented, seen live) after the name the user gave the server, such
+          // as Logic-Fabric-Foundry in the Copilot app, so its matcher takes any name with the server's in it, in any
+          // case. The hooks check the name again.
           for (const server of servers) {
-            matcher = matcher.replace(claudeTools(server), client === 'codex' ? `mcp__${server}__` : `.*${anyCase(server)}.*`);
+            if (client !== 'codex') {
+              matcher = matcher.replace(claudeTools(server), `.*${anyCase(server)}.*`);
+            } else if (claudeTools(server).test(matcher)) {
+              matcher = `${matcher.replace(claudeTools(server), `mcp__${server}__`)}|${matcher.replace(claudeTools(server), `mcp__codex_apps__.*${anyCase(server)}.*_`)}`;
+            }
           }
         }
       }

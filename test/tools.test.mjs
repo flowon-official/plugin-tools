@@ -151,7 +151,24 @@ test('build-ports: Copilot\'s hooks match the server\'s tools whatever the case 
   assert.ok(!gate.test('github-mcp-server-get_file_contents'));
   assert.ok(exportHook.test('Logic-Fabric-Foundry-delete'));
   assert.ok(!exportHook.test('Logic-Fabric-Foundry-get'));
-  assert.equal(codex.PreToolUse[0].matcher, 'mcp__foundry__.*');
+
+  // Codex: its own server, and the server added to ChatGPT as an app (mcp__codex_apps__<app>__<tool>), which Codex
+  // reaches when the user connected ChatGPT's apps. A matcher may be searched or matched whole: both are checked.
+  for (const whole of [false, true]) {
+    const codexGate = new RegExp(whole ? `^(?:${codex.PreToolUse[0].matcher})$` : codex.PreToolUse[0].matcher);
+    const codexExport = new RegExp(whole ? `^(?:${codex.PostToolUse[0].matcher})$` : codex.PostToolUse[0].matcher);
+
+    for (const name of ['mcp__foundry__save', 'mcp__codex_apps__logic_fabric_foundry_1__save', 'mcp__codex_apps__logic_foundry__release', 'mcp__codex_apps__logic_fabric_foundry_1_save']) {
+      assert.ok(codexGate.test(name), name);
+    }
+
+    assert.ok(!codexGate.test('mcp__codex_apps__hotline__save'));
+    assert.ok(!codexGate.test('mcp__github__get_file_contents'));
+    assert.ok(codexExport.test('mcp__foundry__delete'));
+    assert.ok(codexExport.test('mcp__codex_apps__logic_fabric_foundry_1__delete'));
+    assert.ok(!codexExport.test('mcp__codex_apps__logic_fabric_foundry_1__get'));
+    assert.ok(!codexExport.test('mcp__foundry__get'));
+  }
 });
 
 test('release-notes: the version\'s changelog entry, without its heading', () => {
